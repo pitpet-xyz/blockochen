@@ -3,9 +3,10 @@ name = "blockochen"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-hex-literal = "*"
-sha2 = "*"
-indexmap = "*"
+#hex-literal = "0.3"
+sha2 = "0.10"
+indexmap = "1.8"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
