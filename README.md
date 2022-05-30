@@ -1,5 +1,11 @@
+needs `cargo-wasi`
+
 ```shell
-$ cargo build --release --target wasm32-unknown-unknown
-$ file target/wasm32-unknown-unknown/release/blockochen.wasm
-target/wasm32-unknown-unknown/release/blockochen.wasm: WebAssembly (wasm) binary module version 0x1 (MVP)
+$ make
+```
+
+then:
+
+```shell
+$ wasmer run target/wasm32-wasi/debug/blockochen.wasm
 ```

@@ -1,3 +1,3 @@
 all:
-	cargo build --release --target wasm32-unknown-unknown
-	file target/wasm32-unknown-unknown/release/blockochen.wasm
+	cargo wasi build
+	file target/wasm32-wasi/debug/blockochen.wasm

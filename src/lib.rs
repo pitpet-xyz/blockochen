@@ -1,11 +1,34 @@
+use serde::{Deserialize, Serialize};
+use serde::{Deserializer, Serializer};
+
 use indexmap::IndexMap;
 use sha2::{Digest, Sha256};
 
-pub type Hash = Vec<u8>;
+#[derive(Eq, PartialEq, Hash, Debug, Clone, Default)]
+pub struct Hash(Vec<u8>);
+
+impl Serialize for Hash {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&hex::encode(&self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for Hash {
+    fn deserialize<D>(deserializer: D) -> Result<Hash, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = <String>::deserialize(deserializer)?;
+        Ok(Hash(hex::decode(&s).unwrap()))
+    }
+}
 
 pub const TTL: usize = 16;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Blocko {
     pub index: usize,
     pub timestamp: u64,
@@ -26,17 +49,12 @@ impl Blocko {
         let preceding_hash = preceding_hash.unwrap_or_default();
         let (birth_hash, hash) = if birth_data.is_empty() {
             (
-                Self::compute_hash(index, timestamp, data.as_slice(), preceding_hash.as_slice()),
-                Self::compute_hash(index, timestamp, data.as_slice(), preceding_hash.as_slice()),
+                Self::compute_hash(index, timestamp, &data, preceding_hash.0.as_slice()),
+                Self::compute_hash(index, timestamp, &data, &preceding_hash.0),
             )
         } else {
-            let hash = Self::compute_hash(
-                index,
-                timestamp,
-                birth_data.as_slice(),
-                preceding_hash.as_slice(),
-            );
-            (birth_data, hash)
+            let hash = Self::compute_hash(index, timestamp, &birth_data, &preceding_hash.0);
+            (Hash(birth_data), hash)
         };
         Self {
             index,
@@ -54,11 +72,11 @@ impl Blocko {
         hasher.update(timestamp.to_be_bytes());
         hasher.update(data);
         hasher.update(preceding_hash);
-        hasher.finalize().to_vec()
+        Hash(hasher.finalize().to_vec())
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Blockochen {
     pub chen: IndexMap<Hash, Blocko>,
     pub ts: u64,
@@ -71,7 +89,7 @@ impl Blockochen {
             0,
             vec![],
             b"Initial Block in the Chain".to_vec(),
-            Some(b"0".to_vec()),
+            Some(Hash(b"0".to_vec())),
         );
         Self {
             chen: [(gen_blocko.hash.clone(), gen_blocko)].into(),
@@ -100,14 +118,14 @@ impl Blockochen {
     }
 
     pub fn get_hash(&self, index: usize) -> Option<&[u8]> {
-        self.chen.get_index(index).map(|(h, _)| h.as_slice())
+        self.chen.get_index(index).map(|(h, _)| h.0.as_slice())
     }
 
     pub fn get_events(&self, birth_hash: &[u8]) -> Option<Vec<Vec<u8>>> {
         let ret: Vec<Vec<u8>> = self
             .chen
             .iter()
-            .filter(|(_, b)| b.birth_hash == birth_hash)
+            .filter(|(_, b)| b.birth_hash.0 == birth_hash)
             .map(|(_, b)| b.data.clone())
             .collect();
         if ret.is_empty() {
@@ -122,7 +140,7 @@ impl Blockochen {
             .chen
             .iter()
             .rev()
-            .find(|(_, b)| b.birth_hash == birth_hash)
+            .find(|(_, b)| b.birth_hash.0 == birth_hash)
         {
             self.chen
                 .get_index_of(h)
