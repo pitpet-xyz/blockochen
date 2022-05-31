@@ -1,23 +1,14 @@
 use blockochen::Blockochen;
+use blockochen::Request;
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 use std::io::{self, BufRead};
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum Request {
-    NewBlockchain,
-    LoadBlockchain { json: String },
-    AddBlock { birth_data: Vec<u8>, data: Vec<u8> },
-    GetTTL { birth_hash: Vec<u8> },
-    GetEvents { birth_hash: Vec<u8> },
-    Quit,
-}
 
 fn main() -> Result<()> {
     let mut chain = Blockochen::new();
     let mut init = false;
+    /*
+    println!("Examples:");
     println!("{}", serde_json::to_string(&Request::NewBlockchain)?);
     println!(
         "{}",
@@ -45,9 +36,13 @@ fn main() -> Result<()> {
             birth_hash: b"test".to_vec()
         })?
     );
+    */
     loop {
         let mut input = String::new();
         io::stdin().lock().read_line(&mut input)?;
+        if input.trim().is_empty() {
+            break;
+        }
         let request = serde_json::from_str(input.as_str())?;
         use Request::*;
         match request {
@@ -62,7 +57,7 @@ fn main() -> Result<()> {
                 chain = serde_json::from_str(json.as_str())?;
             }
             AddBlock { birth_data, data } => {
-                chain.add(birth_data, data);
+                println!("{}", chain.add(birth_data, data));
             }
             GetTTL { birth_hash } => {
                 println!("{}", chain.get_ttl(&birth_hash).unwrap());
@@ -73,8 +68,10 @@ fn main() -> Result<()> {
                     serde_json::to_string(&chain.get_events(&birth_hash)).unwrap()
                 );
             }
-            Quit => {
+            Print => {
                 println!("{}", serde_json::to_string(&chain)?);
+            }
+            Quit => {
                 break;
             }
         }

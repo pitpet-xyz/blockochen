@@ -4,8 +4,36 @@ use serde::{Deserializer, Serializer};
 use indexmap::IndexMap;
 use sha2::{Digest, Sha256};
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum Request {
+    NewBlockchain,
+    LoadBlockchain { json: String },
+    AddBlock { birth_data: Vec<u8>, data: Vec<u8> },
+    GetTTL { birth_hash: Vec<u8> },
+    GetEvents { birth_hash: Vec<u8> },
+    Print,
+    Quit,
+}
+
+impl std::fmt::Display for Request {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            fmt,
+            "{}",
+            serde_json::to_string(self).expect("Could not serialize Request, this is a bug.")
+        )
+    }
+}
+
 #[derive(Eq, PartialEq, Hash, Debug, Clone, Default)]
 pub struct Hash(Vec<u8>);
+
+impl std::fmt::Display for Hash {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(fmt, "{}", &hex::encode(&self.0))
+    }
+}
 
 impl Serialize for Hash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
