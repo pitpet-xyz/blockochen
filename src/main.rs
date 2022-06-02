@@ -56,16 +56,27 @@ fn main() -> Result<()> {
                 init = true;
                 chain = serde_json::from_str(json.as_str())?;
             }
-            AddBlock { birth_data, data } => {
-                println!("{}", chain.add(birth_data, data));
+            SpawnBlock { birth_data, data } => {
+                println!("{}", chain.spawn(birth_data, data));
             }
+            AddBlock { birth_hash, data } => match chain.add(birth_hash, data) {
+                Ok(hash) => {
+                    println!("{}", hash);
+                }
+                Err(None) => {
+                    println!("birth_hash not found in chain");
+                }
+                Err(Some(_)) => {
+                    println!("dead");
+                }
+            },
             GetTTL { birth_hash } => {
-                println!("{}", chain.get_ttl(&birth_hash).unwrap());
+                println!("{}", chain.get_ttl(birth_hash).unwrap());
             }
             GetEvents { birth_hash } => {
                 println!(
                     "{}",
-                    serde_json::to_string(&chain.get_events(&birth_hash)).unwrap()
+                    serde_json::to_string(&chain.get_events(birth_hash)).unwrap()
                 );
             }
             Print => {

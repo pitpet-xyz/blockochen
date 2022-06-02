@@ -9,9 +9,10 @@ use sha2::{Digest, Sha256};
 pub enum Request {
     NewBlockchain,
     LoadBlockchain { json: String },
-    AddBlock { birth_data: Vec<u8>, data: Vec<u8> },
-    GetTTL { birth_hash: Vec<u8> },
-    GetEvents { birth_hash: Vec<u8> },
+    AddBlock { birth_hash: Hash, data: Vec<u8> },
+    SpawnBlock { birth_data: Vec<u8>, data: Vec<u8> },
+    GetTTL { birth_hash: Hash },
+    GetEvents { birth_hash: Hash },
     Print,
     Quit,
 }
@@ -70,6 +71,39 @@ impl Blocko {
     pub fn new(
         index: usize,
         timestamp: u64,
+        birth_hash: Hash,
+        data: Vec<u8>,
+        preceding_hash: Option<Hash>,
+    ) -> Self {
+        let preceding_hash = preceding_hash.unwrap_or_default();
+        let (birth_hash, hash) = if birth_hash.0.is_empty() {
+            (
+                Self::compute_hash(index, timestamp, &data, &preceding_hash.0),
+                Self::compute_hash(index, timestamp, &data, &preceding_hash.0),
+            )
+        } else {
+            let amalg = birth_hash
+                .0
+                .iter()
+                .cloned()
+                .chain(data.iter().cloned())
+                .collect::<Vec<u8>>();
+            let hash = Self::compute_hash(index, timestamp, &amalg, &preceding_hash.0);
+            (birth_hash, hash)
+        };
+        Self {
+            index,
+            timestamp,
+            birth_hash,
+            data,
+            preceding_hash,
+            hash,
+        }
+    }
+
+    pub fn spawn(
+        index: usize,
+        timestamp: u64,
         birth_data: Vec<u8>,
         data: Vec<u8>,
         preceding_hash: Option<Hash>,
@@ -77,13 +111,18 @@ impl Blocko {
         let preceding_hash = preceding_hash.unwrap_or_default();
         let (birth_hash, hash) = if birth_data.is_empty() {
             (
-                Self::compute_hash(index, timestamp, &data, preceding_hash.0.as_slice()),
+                Self::compute_hash(index, timestamp, &data, &preceding_hash.0),
                 Self::compute_hash(index, timestamp, &data, &preceding_hash.0),
             )
         } else {
-            let hash = Self::compute_hash(index, timestamp, &birth_data, &preceding_hash.0);
-            (Hash(birth_data), hash)
+            let amalg = birth_data
+                .into_iter()
+                .chain(data.iter().cloned())
+                .collect::<Vec<u8>>();
+            let birth_hash = Self::compute_hash(index, timestamp, &amalg, &preceding_hash.0);
+            (birth_hash.clone(), birth_hash)
         };
+
         Self {
             index,
             timestamp,
@@ -115,7 +154,7 @@ impl Blockochen {
         let gen_blocko = Blocko::new(
             0,
             0,
-            vec![],
+            Hash(vec![]),
             b"Initial Block in the Chain".to_vec(),
             Some(Hash(b"0".to_vec())),
         );
@@ -129,11 +168,31 @@ impl Blockochen {
         self.chen.last().map(|(_, b)| b).unwrap()
     }
 
-    pub fn add(&mut self, birth_data: Vec<u8>, data: Vec<u8>) -> Hash {
+    pub fn add(&mut self, birth_hash: Hash, data: Vec<u8>) -> Result<Hash, Option<usize>> {
+        match self.get_ttl(birth_hash.clone()) {
+            t @ None | t @ Some(0) => return Err(t),
+            _ => {}
+        }
         let timestamp = self.ts;
         self.ts += 1;
         let index = self.chen.len();
         let blocko = Blocko::new(
+            index,
+            timestamp,
+            birth_hash,
+            data,
+            Some(self.last().hash.clone()),
+        );
+        let ret = blocko.hash.clone();
+        self.chen.insert(blocko.hash.clone(), blocko);
+        Ok(ret)
+    }
+
+    pub fn spawn(&mut self, birth_data: Vec<u8>, data: Vec<u8>) -> Hash {
+        let timestamp = self.ts;
+        self.ts += 1;
+        let index = self.chen.len();
+        let blocko = Blocko::spawn(
             index,
             timestamp,
             birth_data,
@@ -149,11 +208,11 @@ impl Blockochen {
         self.chen.get_index(index).map(|(h, _)| h.0.as_slice())
     }
 
-    pub fn get_events(&self, birth_hash: &[u8]) -> Option<Vec<Vec<u8>>> {
+    pub fn get_events(&self, birth_hash: Hash) -> Option<Vec<Vec<u8>>> {
         let ret: Vec<Vec<u8>> = self
             .chen
             .iter()
-            .filter(|(_, b)| b.birth_hash.0 == birth_hash)
+            .filter(|(_, b)| b.birth_hash == birth_hash)
             .map(|(_, b)| b.data.clone())
             .collect();
         if ret.is_empty() {
@@ -163,12 +222,12 @@ impl Blockochen {
         }
     }
 
-    pub fn get_ttl(&self, birth_hash: &[u8]) -> Option<usize> {
+    pub fn get_ttl(&self, birth_hash: Hash) -> Option<usize> {
         if let Some((h, _)) = self
             .chen
             .iter()
             .rev()
-            .find(|(_, b)| b.birth_hash.0 == birth_hash)
+            .find(|(_, b)| b.birth_hash == birth_hash)
         {
             self.chen
                 .get_index_of(h)
