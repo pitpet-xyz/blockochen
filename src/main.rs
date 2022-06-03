@@ -2,6 +2,7 @@ use blockochen::Blockochen;
 use blockochen::Request;
 
 use anyhow::Result;
+use serde_json::json;
 use std::io::{self, BufRead};
 
 fn main() -> Result<()> {
@@ -47,7 +48,10 @@ fn main() -> Result<()> {
         use Request::*;
         match request {
             NewBlockchain | LoadBlockchain { .. } if init => {
-                return Err(anyhow::anyhow!("Blockchain was already initialised!"))
+                println!(
+                    "{}",
+                    json!({ "type": "error", "message": "Blockchain was already initialised!", })
+                );
             }
             NewBlockchain => {
                 init = true;
@@ -59,19 +63,32 @@ fn main() -> Result<()> {
             SpawnBlock { birth_data, data } => {
                 println!("{}", chain.spawn(birth_data, data));
             }
-            AddBlock { birth_hash, data } => match chain.add(birth_hash, data) {
+            AddBlock { birth_hash, data } => match chain.add(birth_hash.clone(), data) {
                 Ok(hash) => {
                     println!("{}", hash);
                 }
                 Err(None) => {
-                    println!("birth_hash not found in chain");
+                    println!(
+                        "{}",
+                        json!({"type":"error", "message":format!("birth_hash {} not found in chain.", birth_hash)})
+                    );
                 }
                 Err(Some(_)) => {
-                    println!("dead");
+                    println!(
+                        "{}",
+                        json!({"type":"error", "message":format!("birth_hash {} is dead.", birth_hash)})
+                    );
                 }
             },
             GetTTL { birth_hash } => {
-                println!("{}", chain.get_ttl(birth_hash).unwrap());
+                if let Some(ttl) = chain.get_ttl(birth_hash.clone()) {
+                    println!("{}", ttl);
+                } else {
+                    println!(
+                        "{}",
+                        json!({"type":"error", "message":format!("birth_hash {} not found in chain.", birth_hash)})
+                    );
+                }
             }
             GetEvents { birth_hash } => {
                 println!(
