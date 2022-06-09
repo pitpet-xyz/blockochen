@@ -99,6 +99,9 @@ fn main() -> Result<()> {
             Print => {
                 println!("{}", serde_json::to_string(&chain)?);
             }
+            PrintGenesis => {
+                println!("{}", chain.genesis_hash);
+            }
             Quit => {
                 break;
             }

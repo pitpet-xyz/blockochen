@@ -4,6 +4,8 @@ use serde::{Deserializer, Serializer};
 use indexmap::IndexMap;
 use sha2::{Digest, Sha256};
 
+pub const TTL: usize = 16;
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum Request {
@@ -14,6 +16,7 @@ pub enum Request {
     GetTTL { birth_hash: Hash },
     GetEvents { birth_hash: Hash },
     Print,
+    PrintGenesis,
     Quit,
 }
 
@@ -54,8 +57,6 @@ impl<'de> Deserialize<'de> for Hash {
         Ok(Hash(hex::decode(&s).unwrap()))
     }
 }
-
-pub const TTL: usize = 16;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Blocko {
@@ -145,6 +146,7 @@ impl Blocko {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Blockochen {
+    pub genesis_hash: Hash,
     pub chen: IndexMap<Hash, Blocko>,
     pub ts: u64,
 }
@@ -159,6 +161,7 @@ impl Blockochen {
             Some(Hash(b"0".to_vec())),
         );
         Self {
+            genesis_hash: gen_blocko.hash.clone(),
             chen: [(gen_blocko.hash.clone(), gen_blocko)].into(),
             ts: 0,
         }
@@ -169,9 +172,11 @@ impl Blockochen {
     }
 
     pub fn add(&mut self, birth_hash: Hash, data: Vec<u8>) -> Result<Hash, Option<usize>> {
-        match self.get_ttl(birth_hash.clone()) {
-            t @ None | t @ Some(0) => return Err(t),
-            _ => {}
+        if birth_hash != self.genesis_hash {
+            match self.get_ttl(birth_hash.clone()) {
+                t @ None | t @ Some(0) => return Err(t),
+                _ => {}
+            }
         }
         let timestamp = self.ts;
         self.ts += 1;
