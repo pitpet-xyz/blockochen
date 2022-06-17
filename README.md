@@ -1,4 +1,11 @@
-needs `cargo-wasi`
+# Blockochen
+
+This project is the blockchain powering PitPet hackathon project at Wasmer.
+Learn more about it here: https://wasmer.io/posts/wasm-on-amazon-lambda-lessons-learned
+
+## How to build
+
+This project needs `cargo-wasi`
 
 ```shell
 $ make
